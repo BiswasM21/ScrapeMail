@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ScrapeMail — Email Scraper</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0f;
+      --surface: #12121a;
+      --card: #1a1a28;
+      --border: #2a2a3d;
+      --accent: #e94560;
+      --accent-hover: #ff6b8a;
+      --text: #eef0f2;
+      --text-muted: #8888a0;
+      --domain-badge: #3b82f6;
+      --domain-badge-bg: rgba(59,130,246,0.12);
+      --search-badge: #22c55e;
+      --search-badge-bg: rgba(34,197,94,0.12);
+      --error: #f87171;
+      --error-bg: rgba(248,113,113,0.1);
+      --radius: 12px;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 48px 16px;
+    }
+
+    .container { width: 100%; max-width: 700px; }
+
+    header { text-align: center; margin-bottom: 40px; }
+    header h1 {
+      font-size: 2.4rem; font-weight: 700;
+      background: linear-gradient(135deg, var(--accent), #ff8fa3);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text; margin-bottom: 8px;
+    }
+    header p { color: var(--text-muted); font-size: 0.95rem; }
+
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 28px;
+      box-shadow: 0 4px 32px rgba(0,0,0,0.4);
+    }
+
+    .input-row { display: flex; gap: 12px; margin-bottom: 12px; }
+    #domainInput {
+      flex: 1; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text); font-family: inherit;
+      font-size: 0.95rem; padding: 12px 16px; outline: none;
+      transition: border-color 0.2s;
+    }
+    #domainInput:focus { border-color: var(--accent); }
+    #domainInput::placeholder { color: var(--text-muted); }
+    #scrapeBtn {
+      background: var(--accent); color: #fff; border: none; border-radius: 8px;
+      padding: 12px 24px; font-family: inherit; font-size: 0.95rem;
+      font-weight: 600; cursor: pointer; transition: background 0.2s, transform 0.1s;
+      white-space: nowrap;
+    }
+    #scrapeBtn:hover:not(:disabled) { background: var(--accent-hover); }
+    #scrapeBtn:active:not(:disabled) { transform: scale(0.97); }
+    #scrapeBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .input-error { color: var(--error); font-size: 0.82rem; margin-bottom: 12px; display: none; }
+
+    .loading { display: none; text-align: center; padding: 32px; color: var(--text-muted); }
+    .spinner {
+      width: 32px; height: 32px; border: 3px solid var(--border);
+      border-top-color: var(--accent); border-radius: 50%;
+      animation: spin 0.8s linear infinite; margin: 0 auto 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .count-row { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+    .badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 14px; border-radius: 999px; font-size: 0.82rem; font-weight: 600;
+    }
+    .badge.total { background: var(--error-bg); color: var(--accent); border: 1px solid rgba(233,69,96,0.3); }
+    .badge.domain { background: var(--domain-badge-bg); color: var(--domain-badge); }
+    .badge.search { background: var(--search-badge-bg); color: var(--search-badge); }
+
+    .email-list { max-height: 400px; overflow-y: auto; margin-bottom: 16px; border: 1px solid var(--border); border-radius: 8px; }
+    .email-list::-webkit-scrollbar { width: 6px; }
+    .email-list::-webkit-scrollbar-track { background: transparent; }
+    .email-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    .email-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px; border-bottom: 1px solid var(--border); transition: background 0.15s;
+    }
+    .email-row:last-child { border-bottom: none; }
+    .email-row:hover { background: rgba(255,255,255,0.03); }
+    .email-address { flex: 1; font-size: 0.88rem; font-family: 'Courier New', monospace; color: var(--text); word-break: break-all; }
+    .source-badge {
+      font-size: 0.72rem; font-weight: 600; padding: 3px 8px;
+      border-radius: 4px; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.03em;
+    }
+    .source-badge.domain { background: var(--domain-badge-bg); color: var(--domain-badge); }
+    .source-badge.web-search { background: var(--search-badge-bg); color: var(--search-badge); }
+    .copy-btn {
+      background: transparent; border: 1px solid var(--border); color: var(--text-muted);
+      border-radius: 6px; padding: 4px 10px; font-size: 0.75rem; cursor: pointer;
+      transition: all 0.2s; font-family: inherit;
+    }
+    .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .copy-btn.copied { border-color: var(--search-badge); color: var(--search-badge); }
+
+    .action-row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .action-btn {
+      background: var(--surface); border: 1px solid var(--border); color: var(--text-muted);
+      border-radius: 8px; padding: 9px 18px; font-family: inherit; font-size: 0.85rem;
+      cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 6px;
+    }
+    .action-btn:hover { border-color: var(--text-muted); color: var(--text); }
+
+    .error-display {
+      display: none; background: var(--error-bg);
+      border: 1px solid rgba(248,113,113,0.3); border-radius: 8px;
+      padding: 16px; color: var(--error); font-size: 0.88rem; margin-top: 12px;
+    }
+
+    .empty-state { display: none; text-align: center; padding: 32px; color: var(--text-muted); }
+    .empty-state .icon { font-size: 2.4rem; margin-bottom: 12px; }
+
+    #resultsSection { display: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>ScrapeMail</h1>
+      <p>Extract emails from any domain via web crawl and search queries</p>
+    </header>
+    <div class="card">
+      <div class="input-row">
+        <input type="text" id="domainInput" placeholder="google.com" autocomplete="off" spellcheck="false">
+        <button id="scrapeBtn">Scrape</button>
+      </div>
+      <div class="input-error" id="inputError"></div>
+      <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <div>Scraping domain + querying search engines...</div>
+      </div>
+      <div id="resultsSection">
+        <div class="count-row" id="countRow"></div>
+        <div class="email-list" id="emailList"></div>
+        <div class="action-row">
+          <button class="action-btn" id="copyAllBtn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            Copy All
+          </button>
+          <button class="action-btn" id="downloadCsvBtn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download CSV
+          </button>
+          <button class="action-btn" id="downloadJsonBtn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download JSON
+          </button>
+        </div>
+      </div>
+      <div class="error-display" id="errorDisplay"></div>
+      <div class="empty-state" id="emptyState">
+        <div class="icon">&#128269;</div>
+        <div>No emails found for this domain.</div>
+      </div>
+    </div>
+  </div>
+  <script>
+    const domainInput = document.getElementById('domainInput');
+    const scrapeBtn = document.getElementById('scrapeBtn');
+    const inputError = document.getElementById('inputError');
+    const loading = document.getElementById('loading');
+    const resultsSection = document.getElementById('resultsSection');
+    const countRow = document.getElementById('countRow');
+    const emailList = document.getElementById('emailList');
+    const errorDisplay = document.getElementById('errorDisplay');
+    const emptyState = document.getElementById('emptyState');
+    const copyAllBtn = document.getElementById('copyAllBtn');
+    const downloadCsvBtn = document.getElementById('downloadCsvBtn');
+    const downloadJsonBtn = document.getElementById('downloadJsonBtn');
+    let lastResult = null;
+
+    domainInput.addEventListener('input', () => {
+      let val = domainInput.value;
+      val = val.replace(/^(https?:\/\/)?(www\.)?/i, '');
+      if (val !== domainInput.value) { domainInput.value = val; }
+      hideError();
+    });
+
+    scrapeBtn.addEventListener('click', runScrape);
+    domainInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') runScrape(); });
+
+    copyAllBtn.addEventListener('click', () => {
+      if (!lastResult) return;
+      const text = lastResult.emails.map(e => e.address).join('\n');
+      navigator.clipboard.writeText(text).then(() => flashBtn(copyAllBtn, 'Copied!'));
+    });
+
+    downloadCsvBtn.addEventListener('click', () => {
+      if (!lastResult) return;
+      const rows = [['address', 'source'], ...lastResult.emails.map(e => [e.address, e.source])];
+      const csv = rows.map(r => r.join(',')).join('\n');
+      downloadBlob(new Blob([csv], {type: 'text/csv'}), `scrapemail-${lastResult.domain}.csv`);
+    });
+
+    downloadJsonBtn.addEventListener('click', () => {
+      if (!lastResult) return;
+      const json = JSON.stringify(lastResult, null, 2);
+      downloadBlob(new Blob([json], {type: 'application/json'}), `scrapemail-${lastResult.domain}.json`);
+    });
+
+    function runScrape() {
+      const raw = domainInput.value.trim();
+      if (!raw) { showError('Please enter a domain.'); return; }
+      if (!raw.includes('.')) { showError('Please enter a valid domain (e.g., google.com).'); return; }
+      hideError();
+      setLoading(true);
+      errorDisplay.style.display = 'none';
+      resultsSection.style.display = 'none';
+      emptyState.style.display = 'none';
+      fetch('/scrape', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({domain: raw}),
+      })
+      .then(r => r.json())
+      .then(data => {
+        setLoading(false);
+        if (data.error) { showError(data.error); return; }
+        lastResult = data;
+        renderResults(data);
+      })
+      .catch(err => { setLoading(false); showError('Network error: ' + err.message); });
+    }
+
+    function renderResults(data) {
+      resultsSection.style.display = 'block';
+      countRow.innerHTML = `
+        <span class="badge total">${data.total} email${data.total !== 1 ? 's' : ''} found</span>
+        <span class="badge domain">${data.counts.domain} from domain</span>
+        <span class="badge search">${data.counts['web search']} from web search</span>
+      `;
+      if (data.total === 0) {
+        emptyState.style.display = 'block';
+        emailList.innerHTML = '';
+        return;
+      }
+      emptyState.style.display = 'none';
+      emailList.innerHTML = data.emails.map(e => `
+        <div class="email-row">
+          <span class="email-address">${escapeHtml(e.address)}</span>
+          <span class="source-badge ${e.source === 'domain' ? 'domain' : 'web-search'}">${e.source}</span>
+          <button class="copy-btn" data-email="${escapeHtml(e.address)}">Copy</button>
+        </div>
+      `).join('');
+      emailList.querySelectorAll('.copy-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          navigator.clipboard.writeText(btn.dataset.email).then(() => flashBtn(btn, 'Copied!'));
+        });
+      });
+    }
+
+    function setLoading(on) {
+      loading.style.display = on ? 'block' : 'none';
+      scrapeBtn.disabled = on;
+      domainInput.disabled = on;
+    }
+
+    function showError(msg) {
+      inputError.textContent = msg;
+      inputError.style.display = 'block';
+    }
+
+    function hideError() { inputError.style.display = 'none'; }
+
+    function flashBtn(btn, text) {
+      const orig = btn.textContent;
+      btn.textContent = text;
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = orig;
+        btn.classList.remove('copied');
+      }, 1500);
+    }
+
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>
